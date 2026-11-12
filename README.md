@@ -9,10 +9,10 @@ Printable worksheets for the classroom. Everything is in one file, `index.html`,
 - 10 problems per sheet, with a name and date line
 
 ## ELA tab
-- Type a comma separated word list (up to 6 letters per word) or press **Random words**
+- Type a comma separated word list (up to 6 letters per word) or press **Refresh** for random words
 - Each word is shown with three writing spaces to copy it into (8 words per sheet)
 
-Both tabs have **Regenerate sheet** / **Random words** buttons and a **Download PDF** button that saves a US Letter page.
+Both tabs have a **Refresh** button and a **Download PDF** button that saves a US Letter page.
 
 ## Run it
 Open `index.html` in a browser. It loads fonts from Google Fonts and jsPDF from cdnjs, so it needs an internet connection.
