@@ -9,8 +9,10 @@ Printable worksheets for the classroom. Everything is in one file, `index.html`,
 - 10 problems per sheet, with a name and date line
 
 ## ELA tab
-- Type a comma separated word list (up to 6 letters per word) or press **Refresh** for random words
-- Each word is shown with three writing spaces to copy it into (8 words per sheet)
+- Choose how many letters each word has (1 to 6) for random words, or choose **Custom** and type your own comma separated list (up to 6 letters per word)
+- **Copy** or **Trace**: copy each word into writing spaces, or trace the word printed in gray
+- 8 words per sheet. Words with 4 or more letters get two writing spaces, shorter ones get three
+- Letters line up with the writing lines: tall letters touch the top line and small letters reach the dashed line
 
 Both tabs have a **Refresh** button and a **Download PDF** button that saves a US Letter page.
 

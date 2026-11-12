@@ -87,6 +87,7 @@
   .panel > div:first-child { grid-column: 1 / -1; }
   .panel fieldset { grid-column: 1 / -1; }
   .panel fieldset:nth-of-type(2) { order: 2; }
+  #panel-ela .panel fieldset:nth-of-type(2) { order: 0; }
   .panel .actions { grid-column: 1 / -1; order: 3; }
   @media (max-width: 560px) { .panel { grid-template-columns: minmax(0, 1fr); } }
 
@@ -275,9 +276,37 @@
   <aside class="panel" aria-label="Spelling options">
     <div>
       <h1>Spelling Worksheets</h1>
-      <p class="sub">Students copy each word three times.</p>
+      <p class="sub" id="ela-sub">Students copy each word three times.</p>
     </div>
-    <div class="field">
+    <fieldset>
+      <legend>Practice</legend>
+      <div class="seg">
+        <input type="radio" name="ela-mode" id="ela-mode-copy" value="copy" checked>
+        <label for="ela-mode-copy">Copy</label>
+        <input type="radio" name="ela-mode" id="ela-mode-trace" value="trace">
+        <label for="ela-mode-trace">Trace</label>
+      </div>
+    </fieldset>
+    <fieldset id="ela-len-set">
+      <legend>Letters in each word</legend>
+      <div class="seg">
+        <input type="radio" name="ela-len" id="ela-len-1" value="1">
+        <label for="ela-len-1">1</label>
+        <input type="radio" name="ela-len" id="ela-len-2" value="2">
+        <label for="ela-len-2">2</label>
+        <input type="radio" name="ela-len" id="ela-len-3" value="3" checked>
+        <label for="ela-len-3">3</label>
+        <input type="radio" name="ela-len" id="ela-len-4" value="4">
+        <label for="ela-len-4">4</label>
+        <input type="radio" name="ela-len" id="ela-len-5" value="5">
+        <label for="ela-len-5">5</label>
+        <input type="radio" name="ela-len" id="ela-len-6" value="6">
+        <label for="ela-len-6">6</label>
+        <input type="radio" name="ela-len" id="ela-len-custom" value="custom">
+        <label for="ela-len-custom">Custom</label>
+      </div>
+    </fieldset>
+    <div class="field" id="ela-field" hidden>
       <label for="ela-words">Word list</label>
       <textarea id="ela-words" rows="1" spellcheck="false" autocomplete="off" placeholder="the, of, and, that">the, of, and, that, cat, mat, sat, hat</textarea>
       <p class="hint" id="ela-hint"></p>
@@ -659,7 +688,8 @@
   var hint = document.getElementById('ela-hint');
   var statusEl = document.getElementById('ela-status');
   var dlBtn = document.getElementById('ela-download');
-  var state = { words: [], shown: [], skipped: [] };
+  var state = { words: [], shown: [], skipped: [], trace: false };
+  var TRACE = '#BCC3CF';                       // gray, so pencil marks stand out on top of it
   var downloads = null, timer = null;
 
   function shuffle(arr) {
@@ -688,6 +718,10 @@
   // The sheet has room for the first 8 words of the list.
   function pick(words) { return words.slice(0, MAX_WORDS); }
 
+  // Words of 4 or more letters need more room, so a sheet with any of them has two writing spaces instead of three.
+  function copiesFor() { return state.shown.some(function (w) { return w.length >= 4; }) ? 2 : 3; }
+  function copiesWord() { return copiesFor() === 2 ? 'two' : 'three'; }
+
   function line(ctx, x1, x2, y) { ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); }
 
   function render(cv, scale) {
@@ -710,20 +744,29 @@
 
     ctx.textAlign = 'center'; ctx.fillStyle = INK;
     ctx.font = '600 78px ' + FONT;
-    ctx.fillText('Write It Three Times!', PW / 2, 245);
+    var copies = copiesFor();
+    ctx.fillText(state.trace ? 'Trace It!' : copies === 2 ? 'Write It Two Times!' : 'Write It Three Times!', PW / 2, 245);
     ctx.fillStyle = SOFT; ctx.font = '400 36px ' + FONT;
-    ctx.fillText('Write each word three times.', PW / 2, 300);
+    ctx.fillText(state.trace ? 'Trace each gray word with your pencil.' : 'Write each word ' + copiesWord() + ' times.', PW / 2, 300);
 
     // 4 columns: the word, then three handwriting spaces to copy it into
     var rowH = 228, top = 325, gap = 24, left = 50, right = 1650;
     // The word column is only as wide as the longest word, so the writing lines get the rest of the page.
-    ctx.font = '400 96px ' + HAND;
+    // Size the letters to the writing lines: tall letters (l, h, t, d) touch the top line, small letters
+    // (a, e, x) stop at the dashed middle line, and everything sits on the bottom line.
+    ctx.font = '400 100px ' + HAND;
+    var ascent = ctx.measureText('lhdbkf').actualBoundingBoxAscent || 72;
+    var xHeight = ctx.measureText('xaeo').actualBoundingBoxAscent || 50;
+    var F0 = Math.min(150, Math.round(96 * 100 / ascent));
+    var dashY = 0;                                          // set per row below
+    var xh = xHeight / 100 * F0;
+    ctx.font = '400 ' + F0 + 'px ' + HAND;
     var widest = 0;
     state.shown.forEach(function (w) { widest = Math.max(widest, ctx.measureText(w).width); });
-    var wordCol = Math.max(330, Math.min(600, left + 95 + widest + 44));
-    var fs = 96, maxW = wordCol - left - 95 - 44;
-    if (widest > maxW) fs = Math.floor(96 * maxW / widest);
-    var cw = (right - wordCol - 2 * gap) / 3;
+    var wordCol = Math.max(330, Math.min(640, left + 95 + widest + 44));
+    var fs = F0, maxW = wordCol - left - 95 - 44;
+    if (widest > maxW) fs = Math.floor(F0 * maxW / widest);
+    var cw = (right - wordCol - (copies - 1) * gap) / copies;
     state.shown.forEach(function (w, i) {
       var mid = top + rowH * (i + 0.5);
       var topLine = mid - 48, base = mid + 48;            // top line, dashed middle, bottom (baseline)
@@ -737,13 +780,26 @@
       ctx.fillText(w, left + 95, base);
 
       ctx.strokeStyle = GUIDE; ctx.lineWidth = 3;
-      for (var c = 0; c < 3; c++) {
+      for (var c = 0; c < copies; c++) {
         var x = wordCol + c * (cw + gap);
         ctx.setLineDash([]);
         line(ctx, x, x + cw, topLine);
         line(ctx, x, x + cw, base);
         ctx.setLineDash([16, 14]);
-        line(ctx, x, x + cw, mid);
+        line(ctx, x, x + cw, base - xh);
+        if (state.trace) {
+          // The word in solid light gray, sized to fit its space, for the student to trace over.
+          // The gray is dark enough to see but light enough that pencil marks stand out.
+          ctx.save();
+          ctx.font = '400 ' + F0 + 'px ' + HAND;
+          var tw = ctx.measureText(w).width;
+          var tfs = tw > cw - 32 ? Math.floor(F0 * (cw - 32) / tw) : F0;
+          ctx.font = '400 ' + tfs + 'px ' + HAND;
+          ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+          ctx.fillStyle = TRACE;
+          ctx.fillText(w, x + 16, base);
+          ctx.restore();
+        }
       }
       ctx.setLineDash([]);
     });
@@ -766,6 +822,7 @@
     else msg += ' Only the first ' + MAX_WORDS + ' of ' + n + ' words fit on the sheet.';
     if (state.skipped.length) msg += ' Left out because they are too long: ' + state.skipped.join(', ') + '.';
     hint.textContent = msg;
+    document.getElementById('ela-sub').textContent = state.trace ? 'Students trace each word with a pencil.' : 'Students copy each word ' + copiesWord() + ' times.';
     dlBtn.disabled = n === 0;
     render(canvas, 1);
     canvas.setAttribute('aria-label', 'Spelling worksheet. Words: ' + (state.shown.join(', ') || 'none') + '.');
@@ -788,19 +845,44 @@
     'long down day did get come made may part cat mat sat hat bat rat fat pat man fan pan ran van dog log fog hop top mop pig big dig wig ' +
     'sun run fun bug hug mug red bed pen hen ten net wet pot hot dot cup pup sit hit bit fit kit lip zip tip sad mad dad bad cap map nap tap ' +
     'jam ham ram bag tag wag fish frog jump play tree book bird cake ball home ship shop chip want went good very here little friend school ' +
-    'again house mouse green black white happy sleep').split(' ').filter(function (w, i, all) {
+    'again house mouse green black white happy sleep ' +
+    'a b c d e f g h i j k l m n o p q r s t u v w x y z ' +
+    'be it we me my so no go up an as at on or if by us am do he ' +
+    'around family mother father sister animal garden yellow orange purple pencil rabbit window flower pretty before should always people number').split(' ').filter(function (w, i, all) {
       return w.length <= MAX_LETTERS && all.indexOf(w) === i;
     });
 
   // Fills the word list with 8 random words, different from the ones already in the box.
-  document.getElementById('ela-random').addEventListener('click', function () {
+  // Random mode: 8 words with exactly the chosen number of letters (1 gives single letters), different from the last set. Custom mode: type your own.
+  var refreshBtn = document.getElementById('ela-random');
+  function randomize() {
+    var len = parseInt(document.querySelector('input[name="ela-len"]:checked').value, 10);
+    if (!len) return;
     var current = {};
     box.value.split(/[\n,;\t]+/).forEach(function (w) { current[w.trim().toLowerCase()] = true; });
-    var fresh = BANK.filter(function (w) { return !current[w]; });
-    var chosen = shuffle((fresh.length >= MAX_WORDS ? fresh : BANK).slice()).slice(0, MAX_WORDS);
+    var pool = BANK.filter(function (w) { return w.length === len; });
+    var fresh = pool.filter(function (w) { return !current[w]; });
+    var chosen = shuffle((fresh.length >= MAX_WORDS ? fresh : pool).slice()).slice(0, MAX_WORDS);
     box.value = chosen.join(', ');
     load();
-    setStatus('Added ' + MAX_WORDS + ' random words.');
+  }
+  function setSource(rand) {
+    var random = document.querySelector('input[name="ela-len"]:checked').value !== 'custom';
+    document.getElementById('ela-field').hidden = random;
+    refreshBtn.hidden = !random;
+    if (random && rand) randomize();
+    setTimeout(fit, 0);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="ela-mode"]'), function (el) {
+    el.addEventListener('change', function () { state.trace = el.value === 'trace'; refresh(); setStatus(''); });
+  });
+  refreshBtn.addEventListener('click', function () { randomize(); setStatus('New words ready.'); });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="ela-len"]'), function (el) {
+    el.addEventListener('change', function () {
+      var custom = el.value === 'custom';
+      setSource(true);
+      setStatus(custom ? '' : 'New words ready.');
+    });
   });
 
   // Normal browser download. Inside Claude's viewer the downloads capability is used instead.
@@ -819,7 +901,7 @@
       render(big, 1.5);                                   // 300 dpi
       var pdf = new window.jspdf.jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
       pdf.addImage(big.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 8.5, 11);
-      await savePdf(pdf, 'spelling-write-it-three-times.pdf');
+      await savePdf(pdf, state.trace ? 'spelling-trace-it.pdf' : 'spelling-write-it-' + copiesWord() + '-times.pdf');
       setStatus('PDF saved.');
     } catch (err) {
       setStatus(err && err.code === 'declined' ? 'Download cancelled.' : 'The PDF could not be saved.');
@@ -829,6 +911,7 @@
   });
 
   load();
+  setSource(true);
   document.getElementById('tab-ela').addEventListener('click', function () { setTimeout(fit, 0); });
   window.addEventListener('hashchange', function () { setTimeout(fit, 0); });
   if (document.fonts && document.fonts.load) {
