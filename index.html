@@ -275,6 +275,10 @@
         <label for="max-15">15</label>
         <input type="radio" name="max" id="max-20" value="20">
         <label for="max-20">20</label>
+        <input type="radio" name="max" id="max-50" value="50">
+        <label for="max-50">50</label>
+        <input type="radio" name="max" id="max-100" value="100">
+        <label for="max-100">100</label>
       </div>
     </fieldset>
   </aside>
@@ -402,17 +406,21 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
   function makeSheet(op, max, avoid) {
     var pool = [], a, b;
     if (op === 'add') {
-      for (a = 1; a < max; a++) for (b = 1; a + b <= max; b++) pool.push([a, b]);
+      for (a = 0; a <= max; a++) for (b = 0; a + b <= max; b++) if (a + b > 0) pool.push([a, b]);   // 0 is included
     } else if (op === 'mul') {
       // Both numbers go up to the chosen limit. Skip "times 1" unless the limit is 5.
-      var lo = max === 5 ? 1 : 2;
-      for (a = lo; a <= max; a++) for (b = lo; b <= max; b++) pool.push([a, b]);
+      // 0 is always included.
+      var nums = [0];
+      for (var n = (max === 5 ? 1 : 2); n <= max; n++) nums.push(n);
+      nums.forEach(function (x) { nums.forEach(function (y) { pool.push([x, y]); }); });
     } else if (op === 'div') {
       // Whole-number answers only: the answer and the divisor both go up to the limit (the dividend is their product).
-      var dlo = max === 5 ? 1 : 2;
-      for (a = dlo; a <= max; a++) for (b = dlo; b <= max; b++) pool.push([a * b, b]);
+      // The answer can be 0 (like 0 ÷ 7). The divisor is never 0.
+      var qs = [0], ds = [];
+      for (var m = (max === 5 ? 1 : 2); m <= max; m++) { qs.push(m); ds.push(m); }
+      qs.forEach(function (q) { ds.forEach(function (d) { pool.push([q * d, d]); }); });
     } else {
-      for (a = 2; a <= max; a++) for (b = 1; b < a; b++) pool.push([a, b]);
+      for (a = 1; a <= max; a++) for (b = 0; b <= a; b++) pool.push([a, b]);   // 0 is included (like 5 - 0 or 3 - 3)
     }
     var fresh = pool.filter(function (p) { return !avoid[p[0] + ',' + p[1]]; });
     var picked = shuffle((fresh.length >= 10 ? fresh : pool).slice()).slice(0, 10);
@@ -525,10 +533,15 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     rr(ctx, x, y, w, h, 24); ctx.fill(); if (!state.saveInk) ctx.stroke();
     var sign = op === 'add' ? '+' : op === 'mul' ? '\u00D7' : op === 'div' ? '\u00F7' : '\u2212';
     var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
-    var bw = op === 'mul' ? 230 : 170, bh = 124, gap = 30;   // multiplication answers can have 3 digits
+    var bw = 170, bh = 124, gap = 30;
+    if (op === 'mul') bw = Math.max(230, 60 * String(state.max * state.max).length + 50);   // bigger products need a wider box
     ctx.font = wt() + ' 96px ' + FONT;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
     var tw = ctx.measureText(eq).width;
+    if (tw + gap + bw > w - 40) {                       // long equations (like 9801 ÷ 99) get a smaller font to fit the card
+      ctx.font = wt() + ' ' + Math.floor(96 * (w - 40 - gap - bw) / tw) + 'px ' + FONT;
+      tw = ctx.measureText(eq).width;
+    }
     var sx = x + (w - (tw + gap + bw)) / 2, cy = y + h / 2;
     ctx.fillText(eq, sx, cy);
     ctx.lineWidth = 4; ctx.strokeStyle = INK;
@@ -663,12 +676,12 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     draw();
   }
 
-  // Multiplication only makes sense as numbers, so it locks "Show as" to Numbers only
+  // Multiplication, division and anything within 20 or more (20, 50, 100) is numbers only, so it locks "Show as" to Numbers only
   // and brings back the earlier choice when you switch to addition or subtraction.
   var mulOn = false, savedMode = 'emoji';
   function syncMode() {
     var emoji = document.getElementById('mode-emoji'), line = document.getElementById('mode-line'), plain = document.getElementById('mode-plain');
-    var opv = document.querySelector('input[name="op"]:checked').value, mul = opv === 'mul' || opv === 'div';
+    var opv = document.querySelector('input[name="op"]:checked').value, mul = opv === 'mul' || opv === 'div' || parseInt(document.querySelector('input[name="max"]:checked').value, 10) >= 20;
     if (mul && !mulOn) savedMode = document.querySelector('input[name="mode"]:checked').value;
     if (!mul && mulOn) (document.getElementById('mode-' + savedMode) || emoji).checked = true;
     if (mul) plain.checked = true;
@@ -743,7 +756,7 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
 </script>
 <script>
 (function () {
-  var PW = 1700, PH = 2200, MAX_WORDS = 8, MAX_LETTERS = 6;
+  var PW = 1700, PH = 2200, MAX_WORDS = 8, MAX_LETTERS = 8;
   var INK = '#17202E', SOFT = '#586377', GUIDE = '#4FA8DC';
   var FONT = '"Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif';
   var HAND = '"Andika","Comic Sans MS","Trebuchet MS",system-ui,sans-serif';
@@ -780,10 +793,15 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
   }
 
   // The sheet has room for the first 8 words of the list.
-  function pick(words) { return words.slice(0, MAX_WORDS); }
+  // Sheets of only 1 or 2 letter words have just 5 words, shown bigger so they fill the page.
+  function limitFor(words) {
+    var first = words.slice(0, MAX_WORDS);
+    return first.length && first.every(function (w) { return w.length <= 2; }) ? 5 : MAX_WORDS;
+  }
+  function pick(words) { return words.slice(0, limitFor(words)); }
 
-  // Words of 4 or more letters need more room, so a sheet with any of them has two writing spaces instead of three.
-  function copiesFor() { return state.shown.some(function (w) { return w.length >= 4; }) ? 2 : 3; }
+  // Every sheet, Copy or Trace, has two writing spaces per word, so there is plenty of room.
+  function copiesFor() { return 2; }
   function copiesWord() { return copiesFor() === 2 ? 'two' : 'three'; }
 
   function line(ctx, x1, x2, y) { ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); }
@@ -814,34 +832,39 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     ctx.fillText(state.trace ? 'Trace each gray word with your pencil.' : 'Write each word ' + copiesWord() + ' times.', PW / 2, 300);
 
     // 4 columns: the word, then three handwriting spaces to copy it into
-    var rowH = 228, top = 325, gap = 24, left = 50, right = 1650;
+    var few = state.shown.length > 0 && state.shown.every(function (w) { return w.length <= 2; });
+    var K = few ? 1.5 : 1;                              // 5 big rows instead of 8 normal ones
+    var rowH = few ? 364 : 228, top = 325, gap = 24, left = 50, right = 1650;
     // The word column is only as wide as the longest word, so the writing lines get the rest of the page.
     // Size the letters to the writing lines: tall letters (l, h, t, d) touch the top line, small letters
     // (a, e, x) stop at the dashed middle line, and everything sits on the bottom line.
     ctx.font = '400 100px ' + HAND;
     var ascent = ctx.measureText('lhdbkf').actualBoundingBoxAscent || 72;
     var xHeight = ctx.measureText('xaeo').actualBoundingBoxAscent || 50;
-    var F0 = Math.min(150, Math.round(96 * 100 / ascent));
+    var F0 = Math.min(150 * K, Math.round(96 * K * 100 / ascent));
     var dashY = 0;                                          // set per row below
     var xh = xHeight / 100 * F0;
     ctx.font = '400 ' + F0 + 'px ' + HAND;
     var widest = 0;
     state.shown.forEach(function (w) { widest = Math.max(widest, ctx.measureText(w).width); });
-    var wordCol = Math.max(330, Math.min(640, left + 95 + widest + 44));
-    var fs = F0, maxW = wordCol - left - 95 - 44;
+    // A long word shrinks the letters and the writing lines together, so the tall letters still reach the top line.
+    var WMAX = 430;
+    if (widest > WMAX) {
+      var r = WMAX / widest;
+      K *= r; F0 = Math.round(F0 * r); xh = xHeight / 100 * F0; widest = WMAX;
+    }
+    var wordCol = Math.max(330, Math.min(640, left + 20 + widest + 44));
+    var fs = F0, maxW = wordCol - left - 20 - 44;
     if (widest > maxW) fs = Math.floor(F0 * maxW / widest);
     var cw = (right - wordCol - (copies - 1) * gap) / copies;
     state.shown.forEach(function (w, i) {
       var mid = top + rowH * (i + 0.5);
-      var topLine = mid - 48, base = mid + 48;            // top line, dashed middle, bottom (baseline)
+      var topLine = mid - 48 * K, base = mid + 48 * K;            // top line, dashed middle, bottom (baseline)
 
       ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = SOFT;
-      ctx.font = '400 52px ' + HAND;
-      ctx.fillText((i + 1) + '.', left, base);
-
       ctx.font = '400 ' + fs + 'px ' + HAND;
       ctx.fillStyle = INK;
-      ctx.fillText(w, left + 95, base);
+      ctx.fillText(w, left + 20, base);
 
       ctx.strokeStyle = GUIDE; ctx.lineWidth = 3;
       for (var c = 0; c < copies; c++) {
@@ -882,8 +905,8 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     var n = state.words.length;
     var msg = 'Separate words with commas. Each word can have up to ' + MAX_LETTERS + ' letters.';
     if (n === 0) msg += ' Type at least one word.';
-    else if (n <= MAX_WORDS) msg += ' All ' + n + (n === 1 ? ' word is' : ' words are') + ' on the sheet.';
-    else msg += ' Only the first ' + MAX_WORDS + ' of ' + n + ' words fit on the sheet.';
+    else if (n <= limitFor(state.words)) msg += ' All ' + n + (n === 1 ? ' word is' : ' words are') + ' on the sheet.';
+    else msg += ' Only the first ' + limitFor(state.words) + ' of ' + n + ' words fit on the sheet.';
     if (state.skipped.length) msg += ' Left out because they are too long: ' + state.skipped.join(', ') + '.';
     hint.textContent = msg;
     document.getElementById('ela-sub').textContent = state.trace ? 'Students trace each word with a pencil.' : 'Students copy each word ' + copiesWord() + ' times.';
@@ -926,7 +949,8 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     box.value.split(/[\n,;\t]+/).forEach(function (w) { current[w.trim().toLowerCase()] = true; });
     var pool = BANK.filter(function (w) { return w.length === len; });
     var fresh = pool.filter(function (w) { return !current[w]; });
-    var chosen = shuffle((fresh.length >= MAX_WORDS ? fresh : pool).slice()).slice(0, MAX_WORDS);
+    var count = len <= 2 ? 5 : MAX_WORDS;
+    var chosen = shuffle((fresh.length >= count ? fresh : pool).slice()).slice(0, count);
     box.value = chosen.join(', ');
     load();
   }
