@@ -85,7 +85,8 @@
     gap: 16px 20px;
   }
   .panel > div:first-child { grid-column: 1 / -1; }
-  .panel fieldset:nth-of-type(2) { order: 2; grid-column: 1 / -1; }
+  .panel fieldset { grid-column: 1 / -1; }
+  .panel fieldset:nth-of-type(2) { order: 2; }
   .panel .actions { grid-column: 1 / -1; order: 3; }
   @media (max-width: 560px) { .panel { grid-template-columns: minmax(0, 1fr); } }
 
@@ -114,7 +115,8 @@
 
   fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   legend { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 8px; font-weight: 500; }
-  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg label { flex: 1 1 110px; min-width: 0; }
   .seg input { position: absolute; opacity: 0; pointer-events: none; }
   .seg label {
     display: flex; align-items: center; justify-content: center;
@@ -124,6 +126,7 @@
     background: var(--panel);
   }
   .seg label:hover { border-color: var(--accent); }
+  .seg input:disabled + label { opacity: .4; cursor: not-allowed; }
   .seg input:checked + label { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
 
   .status { margin: 0; font-size: .9rem; color: var(--muted); }
@@ -134,8 +137,8 @@
   .dl .status { text-align: center; }
   .dl { position: relative; }
   .status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; }
-  .dl-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  @media (max-width: 420px) { .dl-btns { grid-template-columns: minmax(0, 1fr); } }
+  .dl-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+  .dl-btns .btn { flex: 1 1 150px; min-width: 0; padding: 8px 14px; line-height: 1.2; }
 
   /* Binder tabs: each subject has its own colored divider tab, and the page border takes the active tab's color. */
   .binder { max-width: 760px; margin: 0 auto; --tab: var(--math-c); }
@@ -155,7 +158,11 @@
   .tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
   .tab-math { --tabc: var(--math-c); --tabink: var(--math-ink); }
   .tab-ela { --tabc: var(--ela-c); --tabink: var(--ela-ink); }
-  @media (max-width: 420px) { .tab { min-width: 0; flex: 1; padding-left: 12px; padding-right: 12px; } }
+  /* On phones the tabs share the row but stop short of the page's rounded right corner, so the edge stays clean. */
+  @media (max-width: 520px) {
+    .tabs { padding-left: 16px; padding-right: 16px; }
+    .tab { min-width: 0; flex: 1; padding-left: 12px; padding-right: 12px; }
+  }
   .page { background: var(--tab); border: 2px solid var(--tab); border-radius: 16px; padding: 16px; position: relative; z-index: 1; }
 
   .panel .field { grid-column: 1 / -1; display: grid; gap: 8px; }
@@ -197,7 +204,6 @@
 </style>
 </head>
 <body>
-
 <div class="binder" id="binder" data-tab="math">
   <div class="tabs" role="tablist" aria-label="Subject">
     <button class="tab tab-math" id="tab-math" role="tab" type="button" aria-selected="true" aria-controls="panel-math">Math</button>
@@ -219,6 +225,10 @@
         <label for="op-add">Addition</label>
         <input type="radio" name="op" id="op-sub" value="sub">
         <label for="op-sub">Subtraction</label>
+        <input type="radio" name="op" id="op-mul" value="mul">
+        <label for="op-mul">Multiplication</label>
+        <input type="radio" name="op" id="op-div" value="div">
+        <label for="op-div">Division</label>
       </div>
     </fieldset>
 
@@ -319,6 +329,14 @@
     var pool = [], a, b;
     if (op === 'add') {
       for (a = 1; a < max; a++) for (b = 1; a + b <= max; b++) pool.push([a, b]);
+    } else if (op === 'mul') {
+      // Both numbers go up to the chosen limit. Skip "times 1" unless the limit is 5.
+      var lo = max === 5 ? 1 : 2;
+      for (a = lo; a <= max; a++) for (b = lo; b <= max; b++) pool.push([a, b]);
+    } else if (op === 'div') {
+      // Whole-number answers only: the answer and the divisor both go up to the limit (the dividend is their product).
+      var dlo = max === 5 ? 1 : 2;
+      for (a = dlo; a <= max; a++) for (b = dlo; b <= max; b++) pool.push([a * b, b]);
     } else {
       for (a = 2; a <= max; a++) for (b = 1; b < a; b++) pool.push([a, b]);
     }
@@ -424,9 +442,9 @@
   function drawPlainProblem(ctx, p, op, x, y, w, h) {
     ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
     rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
-    var sign = op === 'add' ? '+' : '−';
+    var sign = op === 'add' ? '+' : op === 'mul' ? '\u00D7' : op === 'div' ? '\u00F7' : '\u2212';
     var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
-    var bw = 170, bh = 124, gap = 30;
+    var bw = op === 'mul' ? 230 : 170, bh = 124, gap = 30;   // multiplication answers can have 3 digits
     ctx.font = '600 96px ' + FONT;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
     var tw = ctx.measureText(eq).width;
@@ -491,7 +509,9 @@
     ctx.stroke();
 
     // title + directions
-    var title = (state.op === 'add' ? 'Addition' : 'Subtraction') + ' Within ' + state.max;
+    var title = state.op === 'mul' ? 'Multiplication Up To ' + state.max
+      : state.op === 'div' ? 'Division Up To ' + state.max
+      : (state.op === 'add' ? 'Addition' : 'Subtraction') + ' Within ' + state.max;
     ctx.textAlign = 'center'; ctx.fillStyle = INK;
     ctx.font = '600 78px ' + FONT;
     ctx.fillText(title, PW / 2, 245);
@@ -542,8 +562,9 @@
   }
 
   function describe() {
-    var sign = state.op === 'add' ? ' plus ' : ' minus ';
-    return (state.op === 'add' ? 'Addition' : 'Subtraction') + ' worksheet within ' + state.max + '. Problems: ' +
+    var sign = state.op === 'add' ? ' plus ' : state.op === 'mul' ? ' times ' : state.op === 'div' ? ' divided by ' : ' minus ';
+    var upTo = state.op === 'mul' || state.op === 'div';
+    return (state.op === 'add' ? 'Addition' : state.op === 'mul' ? 'Multiplication' : state.op === 'div' ? 'Division' : 'Subtraction') + ' worksheet ' + (upTo ? 'up to ' : 'within ') + state.max + '. Problems: ' +
       state.problems.map(function (p) { return p.a + sign + p.b; }).join(', ') + '.';
   }
 
@@ -561,7 +582,21 @@
     draw();
   }
 
+  // Multiplication only makes sense as numbers, so it locks "Show as" to Numbers only
+  // and brings back the earlier choice when you switch to addition or subtraction.
+  var mulOn = false, savedMode = 'emoji';
+  function syncMode() {
+    var emoji = document.getElementById('mode-emoji'), line = document.getElementById('mode-line'), plain = document.getElementById('mode-plain');
+    var opv = document.querySelector('input[name="op"]:checked').value, mul = opv === 'mul' || opv === 'div';
+    if (mul && !mulOn) savedMode = document.querySelector('input[name="mode"]:checked').value;
+    if (!mul && mulOn) (document.getElementById('mode-' + savedMode) || emoji).checked = true;
+    if (mul) plain.checked = true;
+    emoji.disabled = mul; line.disabled = mul;
+    mulOn = mul;
+  }
+
   function readOptions() {
+    syncMode();
     state.op = document.querySelector('input[name="op"]:checked').value;
     state.max = parseInt(document.querySelector('input[name="max"]:checked').value, 10);
     state.mode = document.querySelector('input[name="mode"]:checked').value;
@@ -590,7 +625,7 @@
       render(big, 1.5);                                   // 300 dpi
       var pdf = new window.jspdf.jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
       pdf.addImage(big.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 8.5, 11);
-      var name = (state.op === 'add' ? 'addition' : 'subtraction') + '-within-' + state.max + (state.mode === 'line' ? '-number-line' : state.mode === 'plain' ? '-numbers' : '') + '.pdf';
+      var name = (state.op === 'add' ? 'addition' : state.op === 'mul' ? 'multiplication' : state.op === 'div' ? 'division' : 'subtraction') + (state.op === 'mul' || state.op === 'div' ? '-up-to-' : '-within-') + state.max + (state.mode === 'line' ? '-number-line' : state.mode === 'plain' ? '-numbers' : '') + '.pdf';
       await savePdf(pdf, name);
       setStatus('PDF saved.');
     } catch (err) {

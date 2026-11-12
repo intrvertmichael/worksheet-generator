@@ -3,8 +3,9 @@
 Printable worksheets for the classroom. Everything is in one file, `index.html`, so there is nothing to install or build.
 
 ## Math tab
-- Addition or subtraction, with numbers within 5, 10, 15 or 20
-- Show the problems as emojis, as a number line, or as numbers only
+- Addition, subtraction, multiplication or division, with numbers within 5, 10, 15 or 20
+- Addition and subtraction can be shown as emojis, as a number line, or as numbers only
+- Multiplication and division are always numbers only. Both numbers go up to the limit, and division answers are whole numbers
 - 10 problems per sheet, with a name and date line
 
 ## ELA tab
