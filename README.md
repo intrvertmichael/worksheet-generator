@@ -15,7 +15,7 @@ Printable worksheets for the classroom. Everything is in one file, `index.html`,
 - 8 words per sheet. Words with 4 or more letters get two writing spaces, shorter ones get three
 - Letters line up with the writing lines: tall letters touch the top line and small letters reach the dashed line
 
-Both tabs have a **Refresh** button and a **Download PDF** button that saves a US Letter page.
+Both tabs have a **Refresh** button, a **Print** button (prints just the sheet on US Letter) and a **Download PDF** button.
 
 ## Run it
 Open `index.html` in a browser. It loads fonts from Google Fonts and jsPDF from cdnjs, so it needs an internet connection.

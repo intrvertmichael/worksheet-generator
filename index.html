@@ -143,8 +143,21 @@
   .dl .status { text-align: center; }
   .dl { position: relative; }
   .status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; }
-  .dl-btns { display: flex; flex-wrap: wrap; gap: 10px; }
-  .dl-btns .btn { flex: 1 1 150px; min-width: 0; padding: 8px 14px; line-height: 1.2; }
+  /* Refresh sits on the left, tall; Print is on top of Download PDF on the right. On phones all three stack. */
+  .dl-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .dl-btns .btn { min-width: 0; padding: 8px 14px; line-height: 1.2; }
+  .dl-btns .tall { grid-row: span 2; }
+  @media (max-width: 420px) { .dl-btns { grid-template-columns: minmax(0, 1fr); } .dl-btns .tall { grid-row: auto; } }
+
+  /* Printing: only the sheet is printed, full page, no margins. */
+  #print-area { display: none; }
+  @media print {
+    @page { size: letter; margin: 0; }
+    html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+    .binder { display: none !important; }
+    #print-area { display: block !important; }
+    #print-area img { display: block; width: 8.5in; height: 11in; }
+  }
 
   /* Binder tabs: each subject has its own colored divider tab, and the page border takes the active tab's color. */
   .binder { max-width: 760px; margin: 0 auto; --tab: var(--math-c); }
@@ -269,7 +282,8 @@
     <canvas id="sheet" width="1700" height="2200" role="img" aria-label="Worksheet preview"></canvas>
     <div class="dl">
       <div class="dl-btns">
-        <button id="regen" class="btn primary" type="button">Refresh</button>
+        <button id="regen" class="btn primary tall" type="button">Refresh</button>
+        <button id="print" class="btn" type="button">Print</button>
         <button id="download" class="btn" type="button">Download PDF</button>
       </div>
       <label class="ink"><input type="checkbox" id="save-ink"> <span>Save ink: no card borders, dots instead of emojis</span></label>
@@ -323,7 +337,8 @@
     <canvas id="ela-sheet" width="1700" height="2200" role="img" aria-label="Spelling worksheet preview"></canvas>
     <div class="dl">
       <div class="dl-btns">
-        <button id="ela-random" class="btn primary" type="button">Refresh</button>
+        <button id="ela-random" class="btn primary tall" type="button">Refresh</button>
+        <button id="ela-print" class="btn" type="button">Print</button>
         <button id="ela-download" class="btn" type="button">Download PDF</button>
       </div>
       <p id="ela-status" class="status" role="status" aria-live="polite"></p>
@@ -334,7 +349,30 @@
   </div>
 </div>
 
+<div id="print-area" aria-hidden="true"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+// Print the sheet on its own page. Browsers that block printing (like the preview inside Claude) get a message instead.
+function printCanvas(cv) {
+  return new Promise(function (resolve) {
+    var area = document.getElementById('print-area');
+    var img = new Image();
+    img.onload = function () {
+      area.innerHTML = '';
+      area.appendChild(img);
+      window.addEventListener('afterprint', function done() {
+        window.removeEventListener('afterprint', done);
+        area.innerHTML = '';
+      });
+      window.print();
+      resolve();
+    };
+    img.src = cv.toDataURL('image/jpeg', 0.93);        // 300 dpi
+  });
+}
+var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website to print, or use Download PDF.';
+</script>
 <script>
 (function () {
   var PW = 1700, PH = 2200;               // page in drawing units (200 per inch, US Letter)
@@ -644,6 +682,15 @@
     state.mode = document.querySelector('input[name="mode"]:checked').value;
   }
 
+  document.getElementById('print').addEventListener('click', async function () {
+    if (window.claude) { setStatus(PRINT_BLOCKED); return; }
+    try {
+      if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+      var big = document.createElement('canvas');
+      render(big, 1.5);
+      await printCanvas(big);
+    } catch (err) { setStatus('Printing did not work. Try Download PDF instead.'); }
+  });
   document.getElementById('save-ink').addEventListener('change', function (e) {
     state.saveInk = e.target.checked; draw();
   });
@@ -891,6 +938,15 @@
   }
   Array.prototype.forEach.call(document.querySelectorAll('input[name="ela-mode"]'), function (el) {
     el.addEventListener('change', function () { state.trace = el.value === 'trace'; refresh(); setStatus(''); });
+  });
+  document.getElementById('ela-print').addEventListener('click', async function () {
+    if (window.claude) { setStatus(PRINT_BLOCKED); return; }
+    try {
+      if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+      var big = document.createElement('canvas');
+      render(big, 1.5);
+      await printCanvas(big);
+    } catch (err) { setStatus('Printing did not work. Try Download PDF instead.'); }
   });
   refreshBtn.addEventListener('click', function () { randomize(); setStatus('New words ready.'); });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="ela-len"]'), function (el) {
