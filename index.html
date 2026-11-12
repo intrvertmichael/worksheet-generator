@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Worksheet Generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600&family=Andika:wght@400;700&display=swap">
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<style>
+  /* Layout: sticky control panel on the left, a letter-size paper preview on the right. Stacks on phones. */
+  :root {
+    --bg: #EDF1F6;
+    --panel: #FFFFFF;
+    --ink: #17202E;
+    --muted: #586377;
+    --line: #D3DAE5;
+    --accent: #0E7C66;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #DCF0EA;
+    --shadow: 0 1px 2px rgba(23, 32, 46, .08), 0 14px 34px rgba(23, 32, 46, .12);
+    --page: #F8FAFC;
+    --math-c: #0E7C66; --math-ink: #FFFFFF;
+    --ela-c: #2F6FD0; --ela-ink: #FFFFFF;
+    --ela-accent: #2458B8; --ela-accent-ink: #FFFFFF; --ela-accent-soft: #DCE8FB;
+    --font: "Fredoka", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F141B; --panel: #18202B; --ink: #E9EEF5; --muted: #9AA6B8; --line: #2A3545;
+      --accent: #3DCBA6; --accent-ink: #052A20; --accent-soft: #17382F;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 14px 34px rgba(0, 0, 0, .45);
+      --page: #131A24;
+      --math-c: #137A66; --math-ink: #FFFFFF;
+      --ela-c: #2D5FBF; --ela-ink: #FFFFFF;
+      --ela-accent: #8DB8FF; --ela-accent-ink: #06214A; --ela-accent-soft: #1B2D4F;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F141B; --panel: #18202B; --ink: #E9EEF5; --muted: #9AA6B8; --line: #2A3545;
+    --accent: #3DCBA6; --accent-ink: #052A20; --accent-soft: #17382F;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 14px 34px rgba(0, 0, 0, .45);
+    --page: #131A24;
+    --math-c: #137A66; --math-ink: #FFFFFF;
+    --ela-c: #2D5FBF; --ela-ink: #FFFFFF;
+    --ela-accent: #8DB8FF; --ela-accent-ink: #06214A; --ela-accent-soft: #1B2D4F;
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 16px;
+    padding-block: 24px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  * { box-sizing: border-box; }
+
+  .app {
+    max-width: 720px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 859px) {
+    .app { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+  .panel > div:first-child { grid-column: 1 / -1; }
+  .panel fieldset:nth-of-type(2) { order: 2; grid-column: 1 / -1; }
+  .panel .actions { grid-column: 1 / -1; order: 3; }
+  @media (max-width: 560px) { .panel { grid-template-columns: minmax(0, 1fr); } }
+
+  h1 { font-size: 1.5rem; font-weight: 600; line-height: 1.15; margin: 0; text-wrap: balance; }
+  .sub { margin: 4px 0 0; color: var(--muted); font-size: .95rem; line-height: 1.4; }
+
+  .btn {
+    font: inherit;
+    font-weight: 500;
+    font-size: 1.05rem;
+    min-height: 48px;
+    padding: 0 18px;
+    border-radius: 10px;
+    border: 1.5px solid var(--line);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn:focus-visible, .seg input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .actions { display: grid; gap: 10px; }
+
+  fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  legend { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 8px; font-weight: 500; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 44px; padding: 0 10px;
+    border: 1.5px solid var(--line); border-radius: 10px;
+    cursor: pointer; font-weight: 500; text-align: center;
+    background: var(--panel);
+  }
+  .seg label:hover { border-color: var(--accent); }
+  .seg input:checked + label { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
+
+  .status { margin: 0; font-size: .9rem; color: var(--muted); }
+
+  .paper-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
+  .dl { width: 100%; max-width: 720px; display: grid; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .dl .btn { border-color: var(--accent); font-weight: 600; }
+  .dl .status { text-align: center; }
+  .dl { position: relative; }
+  .status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; }
+  .dl-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px) { .dl-btns { grid-template-columns: minmax(0, 1fr); } }
+
+  /* Binder tabs: each subject has its own colored divider tab, and the page border takes the active tab's color. */
+  .binder { max-width: 760px; margin: 0 auto; --tab: var(--math-c); }
+  .binder[data-tab="ela"] { --tab: var(--ela-c); --accent: var(--ela-accent); --accent-ink: var(--ela-accent-ink); --accent-soft: var(--ela-accent-soft); }
+  .binder .app { max-width: none; margin: 0; }
+  .binder [hidden] { display: none !important; }
+  .tabs { display: flex; align-items: flex-end; gap: 6px; padding-left: 18px; }
+  .tab {
+    font: inherit; font-weight: 600; font-size: 1.05rem; letter-spacing: .03em;
+    min-width: 124px; min-height: 40px; padding: 8px 26px;
+    border: 2px solid var(--tabc); border-bottom: 0; border-radius: 14px 14px 0 0;
+    background: var(--tabc); color: var(--tabink);
+    cursor: pointer; opacity: .7; position: relative;
+  }
+  .tab:hover { opacity: .9; }
+  .tab[aria-selected="true"] { opacity: 1; min-height: 50px; padding-top: 12px; margin-bottom: -2px; z-index: 2; }
+  .tab:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .tab-math { --tabc: var(--math-c); --tabink: var(--math-ink); }
+  .tab-ela { --tabc: var(--ela-c); --tabink: var(--ela-ink); }
+  @media (max-width: 420px) { .tab { min-width: 0; flex: 1; padding-left: 12px; padding-right: 12px; } }
+  .page { background: var(--tab); border: 2px solid var(--tab); border-radius: 16px; padding: 16px; position: relative; z-index: 1; }
+
+  .panel .field { grid-column: 1 / -1; display: grid; gap: 8px; }
+  .field label { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  textarea {
+    font: inherit; font-size: 1.1rem; line-height: 1.45; width: 100%; min-height: 54px; resize: none; overflow: hidden;
+    padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line);
+    background: var(--panel); color: var(--ink);
+  }
+  textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .hint { margin: 0; font-size: .9rem; color: var(--muted); line-height: 1.4; }
+  #sheet, #ela-sheet {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    aspect-ratio: 8.5 / 11;
+    background: #fff;
+    border-radius: 3px;
+    box-shadow: var(--shadow);
+  }
+
+  /* No filled boxes inside the colored container: controls sit straight on it, with a thin line as the border. */
+  .binder { --on: #FFFFFF; --on-soft: rgba(255, 255, 255, .86); --on-line: rgba(255, 255, 255, .5); }
+  .binder .panel, .binder .dl { background: transparent; border: 2px solid var(--on-line); color: var(--on); }
+  .binder h1 { color: var(--on); }
+  .binder .sub, .binder .status, .binder .hint, .binder legend, .binder .field label { color: var(--on-soft); }
+  .binder .seg label { background: transparent; border-color: var(--on-line); color: var(--on); }
+  .binder .seg label:hover { border-color: var(--on); }
+  .binder .seg input:checked + label { background: var(--on); border-color: var(--on); color: var(--tab); }
+  .binder .seg input:focus-visible + label, .binder .btn:focus-visible { outline-color: var(--on); }
+  .binder .btn { background: transparent; border-color: var(--on-line); color: var(--on); }
+  .binder .btn:hover:not(:disabled) { border-color: var(--on); }
+  .binder .btn.primary { background: var(--on); border-color: var(--on); color: var(--tab); }
+  .binder .dl .btn { border-color: var(--on-line); }
+  .binder .dl .btn.primary { border-color: var(--on); }
+  .binder textarea { background: rgba(255, 255, 255, .12); border-color: var(--on-line); color: var(--on); caret-color: var(--on); }
+  .binder textarea:focus-visible { outline-color: var(--on); border-color: var(--on); }
+</style>
+</head>
+<body>
+
+<div class="binder" id="binder" data-tab="math">
+  <div class="tabs" role="tablist" aria-label="Subject">
+    <button class="tab tab-math" id="tab-math" role="tab" type="button" aria-selected="true" aria-controls="panel-math">Math</button>
+    <button class="tab tab-ela" id="tab-ela" role="tab" type="button" aria-selected="false" aria-controls="panel-ela" tabindex="-1">ELA</button>
+  </div>
+  <div class="page">
+<div class="app" id="panel-math" role="tabpanel" aria-labelledby="tab-math">
+  <aside class="panel" aria-label="Worksheet options">
+    <div>
+      <h1>Math Worksheets</h1>
+      <p class="sub">Ten problems on one printable page.</p>
+    </div>
+
+
+    <fieldset>
+      <legend>Type of problem</legend>
+      <div class="seg">
+        <input type="radio" name="op" id="op-add" value="add" checked>
+        <label for="op-add">Addition</label>
+        <input type="radio" name="op" id="op-sub" value="sub">
+        <label for="op-sub">Subtraction</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Show as</legend>
+      <div class="seg">
+        <input type="radio" name="mode" id="mode-emoji" value="emoji" checked>
+        <label for="mode-emoji">Emojis</label>
+        <input type="radio" name="mode" id="mode-line" value="line">
+        <label for="mode-line">Number line</label>
+        <input type="radio" name="mode" id="mode-plain" value="plain">
+        <label for="mode-plain">Numbers only</label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Numbers within</legend>
+      <div class="seg">
+        <input type="radio" name="max" id="max-5" value="5">
+        <label for="max-5">5</label>
+        <input type="radio" name="max" id="max-10" value="10" checked>
+        <label for="max-10">10</label>
+        <input type="radio" name="max" id="max-15" value="15">
+        <label for="max-15">15</label>
+        <input type="radio" name="max" id="max-20" value="20">
+        <label for="max-20">20</label>
+      </div>
+    </fieldset>
+  </aside>
+
+  <section class="paper-wrap" aria-label="Worksheet preview">
+    <canvas id="sheet" width="1700" height="2200" role="img" aria-label="Worksheet preview"></canvas>
+    <div class="dl">
+      <div class="dl-btns">
+        <button id="regen" class="btn primary" type="button">Regenerate sheet</button>
+        <button id="download" class="btn" type="button">Download PDF</button>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+</div>
+
+<div class="app" id="panel-ela" role="tabpanel" aria-labelledby="tab-ela" hidden>
+  <aside class="panel" aria-label="Spelling options">
+    <div>
+      <h1>Spelling Worksheets</h1>
+      <p class="sub">Students copy each word three times.</p>
+    </div>
+    <div class="field">
+      <label for="ela-words">Word list</label>
+      <textarea id="ela-words" rows="1" spellcheck="false" autocomplete="off" placeholder="the, of, and, that">the, of, and, that, cat, mat, sat, hat</textarea>
+      <p class="hint" id="ela-hint"></p>
+    </div>
+  </aside>
+
+  <section class="paper-wrap" aria-label="Spelling worksheet preview">
+    <canvas id="ela-sheet" width="1700" height="2200" role="img" aria-label="Spelling worksheet preview"></canvas>
+    <div class="dl">
+      <div class="dl-btns">
+        <button id="ela-random" class="btn primary" type="button">Random words</button>
+        <button id="ela-download" class="btn" type="button">Download PDF</button>
+      </div>
+      <p id="ela-status" class="status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+</div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+(function () {
+  var PW = 1700, PH = 2200;               // page in drawing units (200 per inch, US Letter)
+  var INK = '#17202E', SOFT = '#586377', LINE = '#C3CCD9', BADGE = '#E6ECF4';
+  var FONT = '"Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif';
+  var EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
+
+  var ADD_PAIRS = [['🍎','🍏'],['🐶','🐱'],['⭐','🌙'],['🚗','🚌'],['🌸','🌼'],['🐟','🐙'],['🍓','🍌'],['⚽','🏀'],['🦋','🐞'],['🎈','🎁']];
+  var SUB_ONE = ['🍎','🍏','🍓','🍌','🐟','⭐','🎈','🚗','🐶','🐱','🌸','🦋','⚽','🍪','🐥'];
+
+  var state = { op: 'add', max: 10, mode: 'emoji', problems: [] };
+  var canvas = document.getElementById('sheet');
+  var statusEl = document.getElementById('status');
+  var dlBtn = document.getElementById('download');
+  var downloads = null;
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  // Build 10 problems. Pass the previous sheet's problems in `avoid` so a new sheet repeats none of them.
+  function makeSheet(op, max, avoid) {
+    var pool = [], a, b;
+    if (op === 'add') {
+      for (a = 1; a < max; a++) for (b = 1; a + b <= max; b++) pool.push([a, b]);
+    } else {
+      for (a = 2; a <= max; a++) for (b = 1; b < a; b++) pool.push([a, b]);
+    }
+    var fresh = pool.filter(function (p) { return !avoid[p[0] + ',' + p[1]]; });
+    var picked = shuffle((fresh.length >= 10 ? fresh : pool).slice()).slice(0, 10);
+    var icons = shuffle((op === 'add' ? ADD_PAIRS : SUB_ONE).slice());
+    return picked.map(function (p, i) { return { a: p[0], b: p[1], icon: icons[i] }; });
+  }
+
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // Draw n emojis in a grid, at most 5 across, left to right then top to bottom.
+  function drawGrid(ctx, s, n, left, top, pitch) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
+    ctx.font = Math.round(pitch * 0.8) + 'px ' + EMOJI_FONT;
+    for (var i = 0; i < n; i++) {
+      ctx.fillText(s, left + (i % PER_ROW + 0.5) * pitch, top + (Math.floor(i / PER_ROW) + 0.5) * pitch + pitch * 0.05);
+    }
+  }
+
+  function repeat(s, n) { var out = []; for (var i = 0; i < n; i++) out.push(s); return out; }
+
+  var PAD = 26, BOX_W = 150, BOX_H = 104, ROW_GAP = 8, MAX_CH = 350, PER_ROW = 5;
+  var EQ_FONT = '600 88px ' + FONT;
+  var mctx = document.createElement('canvas').getContext('2d');
+
+  // Emojis sit in blocks (at most 5 across) directly above the number they stand for.
+  // Nothing is drawn above the answer box.
+  function layoutProblem(p, op, innerW) {
+    var hAvail = MAX_CH - PAD * 2 - ROW_GAP - BOX_H;
+    var colsA = Math.min(PER_ROW, p.a), rowsA = Math.ceil(p.a / PER_ROW);
+    var colsB = op === 'add' ? Math.min(PER_ROW, p.b) : 0;
+    var rowsB = op === 'add' ? Math.ceil(p.b / PER_ROW) : 0;
+    var rows = Math.max(rowsA, rowsB);
+    mctx.font = EQ_FONT;
+    var wa = mctx.measureText(String(p.a)).width, wb = mctx.measureText(String(p.b)).width;
+    var wPlus = mctx.measureText('+').width, wEq = mctx.measureText('=').width;
+    var wFull = mctx.measureText(p.a + ' − ' + p.b + ' =').width;
+    var lay = null, used = 24, leftExt = 0;
+    // Start with the biggest emojis that fit the height, then shrink until the whole row fits the card.
+    for (var pitch = Math.min(110, hAvail / rows); pitch >= 24; pitch -= 2) {
+      var WA = colsA * pitch, WB = colsB * pitch;
+      leftExt = Math.max(WA / 2, wa / 2);
+      if (op === 'add') {
+        var D = Math.max(wa / 2 + 64 + wPlus + wb / 2, (WA + WB) / 2 + 28);
+        var boxOff = Math.max(wb / 2 + 22 + wEq + 26, WB / 2 + 18);
+        lay = { T: leftExt + D + boxOff + BOX_W, D: D, boxOff: boxOff };
+      } else {
+        lay = { T: leftExt + (wFull - wa / 2) + 28 + BOX_W, D: 0, boxOff: 0 };
+      }
+      used = pitch;
+      if (lay.T <= innerW) break;
+    }
+    lay.pitch = used; lay.rows = rows; lay.rowsA = rowsA; lay.rowsB = rowsB;
+    lay.colsA = colsA; lay.colsB = colsB; lay.leftExt = leftExt;
+    lay.wa = wa; lay.wEq = wEq; lay.wFull = wFull; lay.emojiH = rows * used;
+    return lay;
+  }
+
+  function drawProblem(ctx, p, lay, op, x, y, w, h) {
+    ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
+    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+
+    var pitch = lay.pitch, emojiH = lay.emojiH;
+    var startY = y + (h - (emojiH + ROW_GAP + BOX_H)) / 2;
+    var ey = startY + emojiH + ROW_GAP + BOX_H / 2;          // middle of the equation row
+    var ca = x + (w - lay.T) / 2 + lay.leftExt;              // center of the first number
+    // blocks sit on the bottom edge so every emoji group rests right above its number
+    var gridTop = function (blockRows) { return startY + (lay.rows - blockRows) * pitch; };
+    var boxX;
+
+    if (op === 'add') {
+      var cb = ca + lay.D;                                    // center of the second number
+      drawGrid(ctx, p.icon[0], p.a, ca - lay.colsA * pitch / 2, gridTop(lay.rowsA), pitch);
+      drawGrid(ctx, p.icon[1], p.b, cb - lay.colsB * pitch / 2, gridTop(lay.rowsB), pitch);
+      ctx.fillStyle = INK; ctx.font = EQ_FONT; ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(p.a), ca, ey);
+      ctx.fillText('+', (ca + cb) / 2, ey);
+      ctx.fillText(String(p.b), cb, ey);
+      boxX = cb + lay.boxOff;
+      ctx.textAlign = 'left';
+      ctx.fillText('=', boxX - 26 - lay.wEq, ey);
+    } else {
+      drawGrid(ctx, p.icon, p.a, ca - lay.colsA * pitch / 2, gridTop(lay.rowsA), pitch);
+      ctx.fillStyle = INK; ctx.font = EQ_FONT; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      ctx.fillText(p.a + ' − ' + p.b + ' =', ca - lay.wa / 2, ey);
+      boxX = ca - lay.wa / 2 + lay.wFull + 28;
+    }
+    ctx.lineWidth = 4; ctx.strokeStyle = INK;
+    rr(ctx, boxX, ey - BOX_H / 2, BOX_W, BOX_H, 14); ctx.stroke();
+  }
+
+  // Numbers only version: one big equation and answer box per card.
+  function drawPlainProblem(ctx, p, op, x, y, w, h) {
+    ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
+    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+    var sign = op === 'add' ? '+' : '−';
+    var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
+    var bw = 170, bh = 124, gap = 30;
+    ctx.font = '600 96px ' + FONT;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
+    var tw = ctx.measureText(eq).width;
+    var sx = x + (w - (tw + gap + bw)) / 2, cy = y + h / 2;
+    ctx.fillText(eq, sx, cy);
+    ctx.lineWidth = 4; ctx.strokeStyle = INK;
+    rr(ctx, sx + tw + gap, cy - bh / 2, bw, bh, 14); ctx.stroke();
+  }
+
+  // Number line version: equation and answer box on the left, a printed number line on the right.
+  function drawLineProblem(ctx, p, op, x, y, w, h, leftW) {
+    ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
+    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+
+    var cy = y + h / 2;
+    var sign = op === 'add' ? '+' : '−';
+    var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
+    ctx.font = '600 76px ' + FONT;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
+    var ex = x + 44, tw = ctx.measureText(eq).width;
+    ctx.fillText(eq, ex, cy);
+    ctx.lineWidth = 4; ctx.strokeStyle = INK;
+    rr(ctx, ex + tw + 28, cy - BOX_H / 2, BOX_W, BOX_H, 14); ctx.stroke();
+
+    var dx = x + leftW;
+    ctx.lineWidth = 3; ctx.strokeStyle = LINE;
+    ctx.beginPath(); ctx.moveTo(dx, y + 24); ctx.lineTo(dx, y + h - 24); ctx.stroke();
+
+    var max = state.max, x0 = dx + 50, x1 = x + w - 50, ly = y + h * 0.62;
+    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(x0 - 22, ly); ctx.lineTo(x1 + 22, ly); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x0 - 34, ly); ctx.lineTo(x0 - 16, ly - 10); ctx.lineTo(x0 - 16, ly + 10); ctx.closePath();
+    ctx.moveTo(x1 + 34, ly); ctx.lineTo(x1 + 16, ly - 10); ctx.lineTo(x1 + 16, ly + 10); ctx.closePath();
+    ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '500 ' + (max > 15 ? 30 : 36) + 'px ' + FONT;
+    for (var i = 0; i <= max; i++) {
+      var tx = x0 + i * (x1 - x0) / max, half = i % 5 === 0 ? 26 : 18;
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(tx, ly - half); ctx.lineTo(tx, ly + half); ctx.stroke();
+      ctx.fillText(String(i), tx, ly + 42);
+    }
+  }
+
+  function render(cv, scale) {
+    cv.width = PW * scale; cv.height = PH * scale;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH);
+
+    // name + date lines
+    ctx.fillStyle = INK; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.font = '500 46px ' + FONT;
+    ctx.fillText('Name:', 50, 105);
+    ctx.fillText('Date:', 1075, 105);
+    var nw = ctx.measureText('Name:').width, dw = ctx.measureText('Date:').width;
+    ctx.lineWidth = 3; ctx.strokeStyle = INK;
+    ctx.beginPath();
+    ctx.moveTo(50 + nw + 16, 111); ctx.lineTo(990, 111);
+    ctx.moveTo(1075 + dw + 16, 111); ctx.lineTo(1650, 111);
+    ctx.stroke();
+
+    // title + directions
+    var title = (state.op === 'add' ? 'Addition' : 'Subtraction') + ' Within ' + state.max;
+    ctx.textAlign = 'center'; ctx.fillStyle = INK;
+    ctx.font = '600 78px ' + FONT;
+    ctx.fillText(title, PW / 2, 245);
+    ctx.fillStyle = SOFT; ctx.font = '400 36px ' + FONT;
+    var directions;
+    if (state.mode === 'line') {
+      directions = state.op === 'add'
+        ? 'Start at the first number. Jump to the right. Write the total.'
+        : 'Start at the first number. Jump to the left. Write how many are left.';
+    } else if (state.mode === 'plain') {
+      directions = 'Solve each problem. Write the answer in the box.';
+    } else {
+      directions = state.op === 'add'
+        ? 'Count the pictures. Write how many there are in all.'
+        : 'Cross out the pictures you take away. Write how many are left.';
+    }
+    ctx.fillText(directions, PW / 2, 300);
+
+    // 2 x 5 grid
+    if (state.mode === 'line') {
+      // The equation column is only as wide as the longest equation, so the number line gets the rest.
+      ctx.font = '600 76px ' + FONT;
+      var widest = 0;
+      state.problems.forEach(function (p) {
+        var t = p.a + ' ' + (state.op === 'add' ? '+' : '−') + ' ' + p.b + ' =';
+        widest = Math.max(widest, ctx.measureText(t).width);
+      });
+      var leftW = 44 + widest + 28 + BOX_W + 36;
+      for (var k = 0; k < state.problems.length; k++) {
+        drawLineProblem(ctx, state.problems[k], state.op, 50, 325 + k * 181, 1600, 172, leftW);
+      }
+      return;
+    }
+    if (state.mode === 'plain') {
+      for (var q = 0; q < state.problems.length; q++) {
+        drawPlainProblem(ctx, state.problems[q], state.op, 50 + (q % 2) * 810, 325 + Math.floor(q / 2) * 352, 790, 340);
+      }
+      return;
+    }
+    var cw = 790, gx = 20, gy = 12, left = 50, top = 325;
+    var lays = state.problems.map(function (p) { return layoutProblem(p, state.op, cw - 20); });
+    var tallest = Math.max.apply(null, lays.map(function (l) { return l.emojiH; }));
+    var ch = Math.min(MAX_CH, tallest + ROW_GAP + BOX_H + PAD * 2);   // boxes hug the content
+    for (var i = 0; i < state.problems.length; i++) {
+      var col = i % 2, row = Math.floor(i / 2);
+      drawProblem(ctx, state.problems[i], lays[i], state.op, left + col * (cw + gx), top + row * (ch + gy), cw, ch);
+    }
+  }
+
+  function describe() {
+    var sign = state.op === 'add' ? ' plus ' : ' minus ';
+    return (state.op === 'add' ? 'Addition' : 'Subtraction') + ' worksheet within ' + state.max + '. Problems: ' +
+      state.problems.map(function (p) { return p.a + sign + p.b; }).join(', ') + '.';
+  }
+
+  function draw() {
+    render(canvas, 1);
+    canvas.setAttribute('aria-label', describe());
+  }
+
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  function newSheet(avoidOld) {
+    var avoid = {};
+    if (avoidOld) state.problems.forEach(function (p) { avoid[p.a + ',' + p.b] = true; });
+    state.problems = makeSheet(state.op, state.max, avoid);
+    draw();
+  }
+
+  function readOptions() {
+    state.op = document.querySelector('input[name="op"]:checked').value;
+    state.max = parseInt(document.querySelector('input[name="max"]:checked').value, 10);
+    state.mode = document.querySelector('input[name="mode"]:checked').value;
+  }
+
+  document.getElementById('regen').addEventListener('click', function () {
+    readOptions(); newSheet(true); setStatus('New sheet ready.');
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="op"], input[name="max"], input[name="mode"]'), function (el) {
+    el.addEventListener('change', function () { readOptions(); newSheet(false); setStatus('New sheet ready.'); });
+  });
+
+  // Normal browser download. Inside Claude's viewer the downloads capability is used instead.
+  function savePdf(pdf, name) {
+    if (downloads) return downloads.save({ filename: name, data: pdf.output('arraybuffer') });
+    pdf.save(name);
+    return Promise.resolve();
+  }
+
+  dlBtn.addEventListener('click', async function () {
+    if (!window.jspdf) { setStatus('The PDF tool did not load. Check your internet connection and reload the page.'); return; }
+    dlBtn.disabled = true; setStatus('Making your PDF...');
+    try {
+      if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+      var big = document.createElement('canvas');
+      render(big, 1.5);                                   // 300 dpi
+      var pdf = new window.jspdf.jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
+      pdf.addImage(big.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 8.5, 11);
+      var name = (state.op === 'add' ? 'addition' : 'subtraction') + '-within-' + state.max + (state.mode === 'line' ? '-number-line' : state.mode === 'plain' ? '-numbers' : '') + '.pdf';
+      await savePdf(pdf, name);
+      setStatus('PDF saved.');
+    } catch (err) {
+      setStatus(err && err.code === 'declined' ? 'Download cancelled.' : 'The PDF could not be saved.');
+    } finally {
+      dlBtn.disabled = false;
+    }
+  });
+
+  // First sheet right away, then redraw once the rounded font has loaded.
+  readOptions(); newSheet(false);
+  if (document.fonts && document.fonts.load) {
+    Promise.all(['400', '500', '600'].map(function (w) { return document.fonts.load(w + ' 40px Fredoka'); }))
+      .then(draw).catch(function () {});
+  }
+
+  // Inside Claude's viewer, use its save prompt. Anywhere else the browser downloads the PDF directly.
+  if (window.claude && window.claude.use) {
+    window.claude.use('downloads').then(function (d) { downloads = d; }).catch(function () {});
+  }
+})();
+</script>
+<script>
+(function () {
+  var PW = 1700, PH = 2200, MAX_WORDS = 8, MAX_LETTERS = 6;
+  var INK = '#17202E', SOFT = '#586377', GUIDE = '#4FA8DC';
+  var FONT = '"Fredoka","Trebuchet MS","Segoe UI",system-ui,sans-serif';
+  var HAND = '"Andika","Comic Sans MS","Trebuchet MS",system-ui,sans-serif';
+  var canvas = document.getElementById('ela-sheet');
+  var box = document.getElementById('ela-words');
+  var hint = document.getElementById('ela-hint');
+  var statusEl = document.getElementById('ela-status');
+  var dlBtn = document.getElementById('ela-download');
+  var state = { words: [], shown: [], skipped: [] };
+  var downloads = null, timer = null;
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  // Words are separated by commas (new lines work too). Repeats are dropped.
+  // A word longer than MAX_LETTERS letters is left out and listed in the hint.
+  function parseWords(text) {
+    var seen = {}, out = [];
+    state.skipped = [];
+    text.split(/[\n,;\t]+/).forEach(function (w) {
+      w = w.replace(/\s+/g, ' ').trim();
+      if (!w || seen[w.toLowerCase()]) return;
+      seen[w.toLowerCase()] = true;
+      if (w.length > MAX_LETTERS) { state.skipped.push(w); return; }
+      out.push(w);
+    });
+    return out;
+  }
+
+  // The sheet has room for the first 8 words of the list.
+  function pick(words) { return words.slice(0, MAX_WORDS); }
+
+  function line(ctx, x1, x2, y) { ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); }
+
+  function render(cv, scale) {
+    cv.width = PW * scale; cv.height = PH * scale;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PW, PH);
+
+    // name + date lines (same as the math sheets)
+    ctx.fillStyle = INK; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.font = '500 46px ' + FONT;
+    ctx.fillText('Name:', 50, 105);
+    ctx.fillText('Date:', 1075, 105);
+    var nw = ctx.measureText('Name:').width, dw = ctx.measureText('Date:').width;
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(50 + nw + 16, 111); ctx.lineTo(990, 111);
+    ctx.moveTo(1075 + dw + 16, 111); ctx.lineTo(1650, 111);
+    ctx.stroke();
+
+    ctx.textAlign = 'center'; ctx.fillStyle = INK;
+    ctx.font = '600 78px ' + FONT;
+    ctx.fillText('Write It Three Times!', PW / 2, 245);
+    ctx.fillStyle = SOFT; ctx.font = '400 36px ' + FONT;
+    ctx.fillText('Write each word three times.', PW / 2, 300);
+
+    // 4 columns: the word, then three handwriting spaces to copy it into
+    var rowH = 228, top = 325, gap = 24, left = 50, right = 1650;
+    // The word column is only as wide as the longest word, so the writing lines get the rest of the page.
+    ctx.font = '400 96px ' + HAND;
+    var widest = 0;
+    state.shown.forEach(function (w) { widest = Math.max(widest, ctx.measureText(w).width); });
+    var wordCol = Math.max(330, Math.min(600, left + 95 + widest + 44));
+    var fs = 96, maxW = wordCol - left - 95 - 44;
+    if (widest > maxW) fs = Math.floor(96 * maxW / widest);
+    var cw = (right - wordCol - 2 * gap) / 3;
+    state.shown.forEach(function (w, i) {
+      var mid = top + rowH * (i + 0.5);
+      var topLine = mid - 48, base = mid + 48;            // top line, dashed middle, bottom (baseline)
+
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = SOFT;
+      ctx.font = '400 52px ' + HAND;
+      ctx.fillText((i + 1) + '.', left, base);
+
+      ctx.font = '400 ' + fs + 'px ' + HAND;
+      ctx.fillStyle = INK;
+      ctx.fillText(w, left + 95, base);
+
+      ctx.strokeStyle = GUIDE; ctx.lineWidth = 3;
+      for (var c = 0; c < 3; c++) {
+        var x = wordCol + c * (cw + gap);
+        ctx.setLineDash([]);
+        line(ctx, x, x + cw, topLine);
+        line(ctx, x, x + cw, base);
+        ctx.setLineDash([16, 14]);
+        line(ctx, x, x + cw, mid);
+      }
+      ctx.setLineDash([]);
+    });
+  }
+
+  function setStatus(msg) { statusEl.textContent = msg; }
+
+  // The box is one line tall and grows only when the list wraps onto more lines.
+  function fit() {
+    box.style.height = 'auto';
+    if (box.scrollHeight) box.style.height = (box.scrollHeight + box.offsetHeight - box.clientHeight) + 'px';
+  }
+
+  function refresh() {
+    fit();
+    var n = state.words.length;
+    var msg = 'Separate words with commas. Each word can have up to ' + MAX_LETTERS + ' letters.';
+    if (n === 0) msg += ' Type at least one word.';
+    else if (n <= MAX_WORDS) msg += ' All ' + n + (n === 1 ? ' word is' : ' words are') + ' on the sheet.';
+    else msg += ' Only the first ' + MAX_WORDS + ' of ' + n + ' words fit on the sheet.';
+    if (state.skipped.length) msg += ' Left out because they are too long: ' + state.skipped.join(', ') + '.';
+    hint.textContent = msg;
+    dlBtn.disabled = n === 0;
+    render(canvas, 1);
+    canvas.setAttribute('aria-label', 'Spelling worksheet. Words: ' + (state.shown.join(', ') || 'none') + '.');
+  }
+
+  function load(fresh) {
+    state.words = parseWords(box.value);
+    state.shown = pick(state.words);
+    refresh();
+  }
+
+  box.addEventListener('input', function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { load(); setStatus(''); }, 150);
+  });
+  // Word bank for the Random words button: first grade sight words, word families and picture words.
+  var BANK = ('the of and to in is you that it he was for on are as with his they at be this have from or one had by word but not what all ' +
+    'were we when your can said there use an each which she do how their if will up other about out many then them these so some her ' +
+    'would make like him into time has look two more write go see number no way could people my than first water been call who now find ' +
+    'long down day did get come made may part cat mat sat hat bat rat fat pat man fan pan ran van dog log fog hop top mop pig big dig wig ' +
+    'sun run fun bug hug mug red bed pen hen ten net wet pot hot dot cup pup sit hit bit fit kit lip zip tip sad mad dad bad cap map nap tap ' +
+    'jam ham ram bag tag wag fish frog jump play tree book bird cake ball home ship shop chip want went good very here little friend school ' +
+    'again house mouse green black white happy sleep').split(' ').filter(function (w, i, all) {
+      return w.length <= MAX_LETTERS && all.indexOf(w) === i;
+    });
+
+  // Fills the word list with 8 random words, different from the ones already in the box.
+  document.getElementById('ela-random').addEventListener('click', function () {
+    var current = {};
+    box.value.split(/[\n,;\t]+/).forEach(function (w) { current[w.trim().toLowerCase()] = true; });
+    var fresh = BANK.filter(function (w) { return !current[w]; });
+    var chosen = shuffle((fresh.length >= MAX_WORDS ? fresh : BANK).slice()).slice(0, MAX_WORDS);
+    box.value = chosen.join(', ');
+    load();
+    setStatus('Added ' + MAX_WORDS + ' random words.');
+  });
+
+  // Normal browser download. Inside Claude's viewer the downloads capability is used instead.
+  function savePdf(pdf, name) {
+    if (downloads) return downloads.save({ filename: name, data: pdf.output('arraybuffer') });
+    pdf.save(name);
+    return Promise.resolve();
+  }
+
+  dlBtn.addEventListener('click', async function () {
+    if (!window.jspdf) { setStatus('The PDF tool did not load. Check your internet connection and reload the page.'); return; }
+    dlBtn.disabled = true; setStatus('Making your PDF...');
+    try {
+      if (document.fonts && document.fonts.ready) { await document.fonts.ready; }
+      var big = document.createElement('canvas');
+      render(big, 1.5);                                   // 300 dpi
+      var pdf = new window.jspdf.jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
+      pdf.addImage(big.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 8.5, 11);
+      await savePdf(pdf, 'spelling-write-it-three-times.pdf');
+      setStatus('PDF saved.');
+    } catch (err) {
+      setStatus(err && err.code === 'declined' ? 'Download cancelled.' : 'The PDF could not be saved.');
+    } finally {
+      dlBtn.disabled = state.words.length === 0;
+    }
+  });
+
+  load();
+  document.getElementById('tab-ela').addEventListener('click', function () { setTimeout(fit, 0); });
+  window.addEventListener('hashchange', function () { setTimeout(fit, 0); });
+  if (document.fonts && document.fonts.load) {
+    Promise.all(['400 40px Andika', '500 40px Fredoka', '600 40px Fredoka'].map(function (f) { return document.fonts.load(f); }))
+      .then(function () { render(canvas, 1); }).catch(function () {});
+  }
+  if (window.claude && window.claude.use) {
+    window.claude.use('downloads').then(function (d) { downloads = d; }).catch(function () {});
+  }
+})();
+</script>
+<script>
+// Binder tabs: Math and ELA. The page address ends in #math or #ela so a tab can be linked.
+(function () {
+  var binder = document.getElementById('binder');
+  var names = ['math', 'ela'];
+  function show(name) {
+    if (names.indexOf(name) < 0) name = 'math';
+    binder.setAttribute('data-tab', name);
+    names.forEach(function (n) {
+      var on = n === name, tab = document.getElementById('tab-' + n);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      tab.tabIndex = on ? 0 : -1;
+      document.getElementById('panel-' + n).hidden = !on;
+    });
+  }
+  names.forEach(function (n, i) {
+    var tab = document.getElementById('tab-' + n);
+    tab.addEventListener('click', function () { show(n); location.hash = n; });
+    tab.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var next = names[(i + (e.key === 'ArrowRight' ? 1 : names.length - 1)) % names.length];
+      show(next); location.hash = next; document.getElementById('tab-' + next).focus();
+    });
+  });
+  window.addEventListener('hashchange', function () { show(location.hash.replace('#', '')); });
+  show(location.hash.replace('#', ''));
+})();
+</script>
+</body>
+</html>
