@@ -7,7 +7,7 @@ Printable worksheets for the classroom. Everything is in one file, `index.html`,
 - Addition and subtraction can be shown as emojis, as a number line, or as numbers only
 - Multiplication and division are always numbers only. Both numbers go up to the limit, and division answers are whole numbers
 - 10 problems per sheet, with a name and date line
-- **Save ink** option: no problem borders, and small dots instead of emojis
+- **Save ink** option: no problem borders, small dots instead of emojis, and a lighter font for the numbers
 
 ## ELA tab
 - Choose how many letters each word has (1 to 6) for random words, or choose **Custom** and type your own comma separated list (up to 6 letters per word)
