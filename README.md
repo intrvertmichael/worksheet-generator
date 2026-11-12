@@ -5,7 +5,7 @@ Printable worksheets for the classroom. Everything is in one file, `index.html`,
 ## Math tab
 - Addition, subtraction, multiplication or division, with numbers within 5, 10, 15, 20, 50 or 100 (0 is included)
 - Within 5, 10 or 15, addition and subtraction can be shown as emojis, as a number line, or as numbers only
-- Within 20, 50 or 100, and for multiplication and division, problems are always numbers only. Both numbers go up to the limit, and division answers are whole numbers
+- Within 20, 50 or 100, and for multiplication and division, problems are always numbers only. The answer to a multiplication problem, and the number being divided in a division problem, stay within the limit. Division answers are whole numbers
 - 10 problems per sheet, with a name and date line
 - **Save ink** option: no problem borders, small dots instead of emojis, and a lighter font for the numbers
 

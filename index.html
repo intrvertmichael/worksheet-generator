@@ -408,17 +408,21 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     if (op === 'add') {
       for (a = 0; a <= max; a++) for (b = 0; a + b <= max; b++) if (a + b > 0) pool.push([a, b]);   // 0 is included
     } else if (op === 'mul') {
-      // Both numbers go up to the chosen limit. Skip "times 1" unless the limit is 5.
-      // 0 is always included.
-      var nums = [0];
-      for (var n = (max === 5 ? 1 : 2); n <= max; n++) nums.push(n);
-      nums.forEach(function (x) { nums.forEach(function (y) { pool.push([x, y]); }); });
+      // The answer (the product) stays within the chosen limit. Above 10, "times 1" is left out, and 0 only
+      // shows up with numbers up to 10, so zeros and ones do not crowd the sheet.
+      for (a = 0; a <= max; a++) for (b = 0; a * b <= max && b <= max; b++) {
+        if (max > 10 && (a === 1 || b === 1)) continue;
+        if (max > 10 && (a === 0 || b === 0) && Math.max(a, b) > 10) continue;
+        pool.push([a, b]);
+      }
     } else if (op === 'div') {
-      // Whole-number answers only: the answer and the divisor both go up to the limit (the dividend is their product).
-      // The answer can be 0 (like 0 ÷ 7). The divisor is never 0.
-      var qs = [0], ds = [];
-      for (var m = (max === 5 ? 1 : 2); m <= max; m++) { qs.push(m); ds.push(m); }
-      qs.forEach(function (q) { ds.forEach(function (d) { pool.push([q * d, d]); }); });
+      // The number being divided stays within the chosen limit, and every answer is a whole number.
+      // The divisor is never 0 or (above 10) 1. An answer of 0 (like 0 ÷ 7) only shows up with divisors up to 10.
+      var lo = max === 5 ? 1 : 2;
+      for (var d = lo; d <= max; d++) {
+        for (var q = lo; q * d <= max; q++) pool.push([q * d, d]);
+        if (d <= 10) pool.push([0, d]);
+      }
     } else {
       for (a = 1; a <= max; a++) for (b = 0; b <= a; b++) pool.push([a, b]);   // 0 is included (like 5 - 0 or 3 - 3)
     }
@@ -534,7 +538,6 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     var sign = op === 'add' ? '+' : op === 'mul' ? '\u00D7' : op === 'div' ? '\u00F7' : '\u2212';
     var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
     var bw = 170, bh = 124, gap = 30;
-    if (op === 'mul') bw = Math.max(230, 60 * String(state.max * state.max).length + 50);   // bigger products need a wider box
     ctx.font = wt() + ' 96px ' + FONT;
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
     var tw = ctx.measureText(eq).width;
@@ -603,9 +606,7 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
     ctx.stroke();
 
     // title + directions
-    var title = state.op === 'mul' ? 'Multiplication Up To ' + state.max
-      : state.op === 'div' ? 'Division Up To ' + state.max
-      : (state.op === 'add' ? 'Addition' : 'Subtraction') + ' Within ' + state.max;
+    var title = (state.op === 'add' ? 'Addition' : state.op === 'sub' ? 'Subtraction' : state.op === 'mul' ? 'Multiplication' : 'Division') + ' Within ' + state.max;
     ctx.textAlign = 'center'; ctx.fillStyle = INK;
     ctx.font = '600 78px ' + FONT;
     ctx.fillText(title, PW / 2, 245);
@@ -657,7 +658,7 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
 
   function describe() {
     var sign = state.op === 'add' ? ' plus ' : state.op === 'mul' ? ' times ' : state.op === 'div' ? ' divided by ' : ' minus ';
-    var upTo = state.op === 'mul' || state.op === 'div';
+    var upTo = false;
     return (state.op === 'add' ? 'Addition' : state.op === 'mul' ? 'Multiplication' : state.op === 'div' ? 'Division' : 'Subtraction') + ' worksheet ' + (upTo ? 'up to ' : 'within ') + state.max + '. Problems: ' +
       state.problems.map(function (p) { return p.a + sign + p.b; }).join(', ') + '.';
   }
@@ -731,7 +732,7 @@ var PRINT_BLOCKED = 'Printing is not available in this preview. Open the website
       render(big, 1.5);                                   // 300 dpi
       var pdf = new window.jspdf.jsPDF({ unit: 'in', format: 'letter', orientation: 'portrait' });
       pdf.addImage(big.toDataURL('image/jpeg', 0.93), 'JPEG', 0, 0, 8.5, 11);
-      var name = (state.op === 'add' ? 'addition' : state.op === 'mul' ? 'multiplication' : state.op === 'div' ? 'division' : 'subtraction') + (state.op === 'mul' || state.op === 'div' ? '-up-to-' : '-within-') + state.max + (state.mode === 'line' ? '-number-line' : state.mode === 'plain' ? '-numbers' : '') + '.pdf';
+      var name = (state.op === 'add' ? 'addition' : state.op === 'mul' ? 'multiplication' : state.op === 'div' ? 'division' : 'subtraction') + '-within-' + state.max + (state.mode === 'line' ? '-number-line' : state.mode === 'plain' ? '-numbers' : '') + '.pdf';
       await savePdf(pdf, name);
       setStatus('PDF saved.');
     } catch (err) {
