@@ -130,6 +130,11 @@
   .seg input:disabled + label { opacity: .4; cursor: not-allowed; }
   .seg input:checked + label { background: var(--accent-soft); border-color: var(--accent); color: var(--ink); font-weight: 600; }
 
+  .ink { display: flex; align-items: center; gap: 10px; min-height: 40px; cursor: pointer; font-size: .95rem; line-height: 1.3; }
+  .ink input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .binder .ink { color: var(--on); }
+  .binder .ink input { accent-color: var(--on); }
+
   .status { margin: 0; font-size: .9rem; color: var(--muted); }
 
   .paper-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; }
@@ -267,6 +272,7 @@
         <button id="regen" class="btn primary" type="button">Refresh</button>
         <button id="download" class="btn" type="button">Download PDF</button>
       </div>
+      <label class="ink"><input type="checkbox" id="save-ink"> <span>Save ink: no card borders, dots instead of emojis</span></label>
       <p id="status" class="status" role="status" aria-live="polite"></p>
     </div>
   </section>
@@ -339,7 +345,7 @@
   var ADD_PAIRS = [['🍎','🍏'],['🐶','🐱'],['⭐','🌙'],['🚗','🚌'],['🌸','🌼'],['🐟','🐙'],['🍓','🍌'],['⚽','🏀'],['🦋','🐞'],['🎈','🎁']];
   var SUB_ONE = ['🍎','🍏','🍓','🍌','🐟','⭐','🎈','🚗','🐶','🐱','🌸','🦋','⚽','🍪','🐥'];
 
-  var state = { op: 'add', max: 10, mode: 'emoji', problems: [] };
+  var state = { op: 'add', max: 10, mode: 'emoji', problems: [], saveInk: false };
   var canvas = document.getElementById('sheet');
   var statusEl = document.getElementById('status');
   var dlBtn = document.getElementById('download');
@@ -390,7 +396,12 @@
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = INK;
     ctx.font = Math.round(pitch * 0.8) + 'px ' + EMOJI_FONT;
     for (var i = 0; i < n; i++) {
-      ctx.fillText(s, left + (i % PER_ROW + 0.5) * pitch, top + (Math.floor(i / PER_ROW) + 0.5) * pitch + pitch * 0.05);
+      var cx = left + (i % PER_ROW + 0.5) * pitch, cy = top + (Math.floor(i / PER_ROW) + 0.5) * pitch;
+      if (state.saveInk) {                                // save ink: small dots instead of emojis
+        ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
+      } else {
+        ctx.fillText(s, cx, cy + pitch * 0.05);
+      }
     }
   }
 
@@ -414,7 +425,7 @@
     var wFull = mctx.measureText(p.a + ' − ' + p.b + ' =').width;
     var lay = null, used = 24, leftExt = 0;
     // Start with the biggest emojis that fit the height, then shrink until the whole row fits the card.
-    for (var pitch = Math.min(110, hAvail / rows); pitch >= 24; pitch -= 2) {
+    for (var pitch = Math.min(state.saveInk ? 50 : 110, hAvail / rows); pitch >= 24; pitch -= 2) {
       var WA = colsA * pitch, WB = colsB * pitch;
       leftExt = Math.max(WA / 2, wa / 2);
       if (op === 'add') {
@@ -435,7 +446,7 @@
 
   function drawProblem(ctx, p, lay, op, x, y, w, h) {
     ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
-    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+    rr(ctx, x, y, w, h, 24); ctx.fill(); if (!state.saveInk) ctx.stroke();
 
     var pitch = lay.pitch, emojiH = lay.emojiH;
     var startY = y + (h - (emojiH + ROW_GAP + BOX_H)) / 2;
@@ -470,7 +481,7 @@
   // Numbers only version: one big equation and answer box per card.
   function drawPlainProblem(ctx, p, op, x, y, w, h) {
     ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
-    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+    rr(ctx, x, y, w, h, 24); ctx.fill(); if (!state.saveInk) ctx.stroke();
     var sign = op === 'add' ? '+' : op === 'mul' ? '\u00D7' : op === 'div' ? '\u00F7' : '\u2212';
     var eq = p.a + ' ' + sign + ' ' + p.b + ' =';
     var bw = op === 'mul' ? 230 : 170, bh = 124, gap = 30;   // multiplication answers can have 3 digits
@@ -486,7 +497,7 @@
   // Number line version: equation and answer box on the left, a printed number line on the right.
   function drawLineProblem(ctx, p, op, x, y, w, h, leftW) {
     ctx.lineWidth = 3; ctx.strokeStyle = LINE; ctx.fillStyle = '#fff';
-    rr(ctx, x, y, w, h, 24); ctx.fill(); ctx.stroke();
+    rr(ctx, x, y, w, h, 24); ctx.fill(); if (!state.saveInk) ctx.stroke();
 
     var cy = y + h / 2;
     var sign = op === 'add' ? '+' : '−';
@@ -500,7 +511,7 @@
 
     var dx = x + leftW;
     ctx.lineWidth = 3; ctx.strokeStyle = LINE;
-    ctx.beginPath(); ctx.moveTo(dx, y + 24); ctx.lineTo(dx, y + h - 24); ctx.stroke();
+    if (!state.saveInk) { ctx.beginPath(); ctx.moveTo(dx, y + 24); ctx.lineTo(dx, y + h - 24); ctx.stroke(); }
 
     var max = state.max, x0 = dx + 50, x1 = x + w - 50, ly = y + h * 0.62;
     ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 5;
@@ -583,7 +594,7 @@
     var cw = 790, gx = 20, gy = 12, left = 50, top = 325;
     var lays = state.problems.map(function (p) { return layoutProblem(p, state.op, cw - 20); });
     var tallest = Math.max.apply(null, lays.map(function (l) { return l.emojiH; }));
-    var ch = Math.min(MAX_CH, tallest + ROW_GAP + BOX_H + PAD * 2);   // boxes hug the content
+    var ch = state.saveInk ? MAX_CH : Math.min(MAX_CH, tallest + ROW_GAP + BOX_H + PAD * 2);   // boxes hug the content
     for (var i = 0; i < state.problems.length; i++) {
       var col = i % 2, row = Math.floor(i / 2);
       drawProblem(ctx, state.problems[i], lays[i], state.op, left + col * (cw + gx), top + row * (ch + gy), cw, ch);
@@ -631,6 +642,9 @@
     state.mode = document.querySelector('input[name="mode"]:checked').value;
   }
 
+  document.getElementById('save-ink').addEventListener('change', function (e) {
+    state.saveInk = e.target.checked; draw();
+  });
   document.getElementById('regen').addEventListener('click', function () {
     readOptions(); newSheet(true); setStatus('New sheet ready.');
   });
